@@ -1,38 +1,33 @@
-name: LME 데이터 업데이트
-
+name: LME data update
 on:
   schedule:
-    - cron: "0,30 0-3 * * *"
+    - cron: "0,30 * * * *"
   workflow_dispatch:
-
 permissions:
   contents: write
-
 concurrency:
   group: lme-update
   cancel-in-progress: false
-
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
-
-      - name: 데이터 받기
+          node-version: 24
+      - name: Fetch data
         run: node scripts/fetch.mjs
-
-      - name: 변경 사항 저장
+      - name: Commit changes
+        if: always()
         run: |
-          if git diff --quiet -- data && [ -z "$(git ls-files --others --exclude-standard data)" ]; then
-            echo "변경 없음"; exit 0
+          git add data
+          if git diff --cached --quiet; then
+            echo "no change"; exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data
-          git commit -m "LME 데이터 $(TZ=Asia/Seoul date +%F)"
+          git commit -m "LME data $(TZ=Asia/Seoul date '+%F %H:%M')"
+          git pull --rebase --quiet || true
           git push
