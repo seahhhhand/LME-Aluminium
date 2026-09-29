@@ -373,6 +373,9 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
     drawChart();
   }
 
+  // 수집 실행 시각을 30분 단위(정각·30분)로 내려서 표시. 예: 17:46 실행 -> 17:30 수집분
+  const slotOf = (iso) => { const t = new Date(iso).getTime(), step = 30 * 60 * 1000; return new Date(Math.floor(t / step) * step).toISOString(); };
+  const hm = (iso) => new Date(iso).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false });
   const FX_SRC = { K: "수출입은행 매매기준율", E: "ECB 기준환율", F: "예비 출처" };
   const kst = (iso) => new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -385,13 +388,14 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
       const failed = status.ok === false;
       const late = (Date.now() - new Date(status.checkedAt).getTime()) > 3 * 3600 * 1000;
       dot = failed ? "err" : (late || staleDays > 5) ? "warn" : "";
-      text = `마지막 확인 ${kst(status.checkedAt)}` + (failed ? ", 수집 실패" : "");
+      text = `마지막 확인 ${kst(slotOf(status.checkedAt))}` + (failed ? ", 수집 실패" : "");
     } else {
       dot = staleDays > 5 ? "warn" : "";
       text = `마지막 반영 ${kst(lastUpdatedAt)}`;
     }
-    const tip = status?.ok === false ? `오류: ${status.message ?? ""}`
-      : lastUpdatedAt ? `30분마다 실행되는 자동 수집이 마지막으로 확인한 시각입니다. 데이터가 마지막으로 바뀐 시각: ${kst(lastUpdatedAt)}` : "";
+    const actual = status?.checkedAt ? `\n실제 실행 시각: ${hm(status.checkedAt)} (GitHub 사정으로 수 분~수십 분 늦게 실행될 수 있습니다)` : "";
+    const tip = (status?.ok === false ? `오류: ${status.message ?? ""}`
+      : `30분 단위 자동 수집 기준 시각입니다.` + (lastUpdatedAt ? `\n데이터가 마지막으로 바뀐 시각: ${kst(lastUpdatedAt)}` : "")) + actual;
     $("#status").innerHTML = `<span class="dot ${dot}"></span><span title="${tip.replace(/"/g, "&quot;")}">${text}</span>`;
   }
 
