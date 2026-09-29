@@ -149,7 +149,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
   <main id="app"></main>
 
   <footer>
-    출처: Westmetall에서 공개하는 LME 알루미늄 공식가격(Cash-Settlement, 3-month)과 LME 재고. 가격은 장 마감 종가가 아닌 LME 공식가격입니다.
+    출처: Westmetall에서 공개하는 LME 알루미늄 공식가격(현물가치 = Cash-Settlement, 3개월 선물가치 = 3-month)과 LME 재고. 가격은 장 마감 종가가 아닌 LME 공식가격입니다.
     재고는 LME 발표 시점 때문에 가격보다 하루 늦게 반영될 수 있습니다. 참고용 자료이며, 계약 단가 산정에는 공식 출처를 확인하세요.
   </footer>
 </div>
@@ -257,7 +257,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
     $("#app").innerHTML = `
       <section class="card hero">
         <div class="hero-main">
-          <div class="hero-label">Cash 공식가격</div>
+          <div class="hero-label">현물가치 (LME 공식가격)</div>
           <div class="hero-price"><span class="v num">${fmt(cCur[1])}</span><span class="u">USD/톤</span></div>
           <div class="num">${chgHtml(cCur[1], cPrev?.[1])} <span style="color:var(--muted);font-size:14px;margin-left:4px">전 거래일 대비</span></div>
           <div class="range">
@@ -273,14 +273,14 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
         </div>
         <div class="stats">
           <div class="stat">
-            <div class="k"><i style="background:var(--three)"></i>3개월물</div>
+            <div class="k"><i style="background:var(--three)"></i>3개월 선물가치</div>
             <div class="v num">${fmt(tCur?.[2])}</div>
             <div class="d num">${chgHtml(tCur?.[2], tPrev?.[2])}</div>
           </div>
           <div class="stat">
-            <div class="k">3개월물 − Cash</div>
+            <div class="k">3개월 선물가치 − 현물가치</div>
             <div class="v num">${spread == null ? "–" : (spread > 0 ? "+" : "") + fmt(spread)}</div>
-            <div class="d">${spread == null ? "" : spread > 0 ? "콘탱고 (선물이 비쌈)" : spread < 0 ? "백워데이션 (현물이 비쌈)" : "보합"}</div>
+            <div class="d">${spread == null ? "" : spread > 0 ? "콘탱고 (선물가치가 높음)" : spread < 0 ? "백워데이션 (현물가치가 높음)" : "보합"}</div>
           </div>
           <div class="stat">
             <div class="k"><i style="background:var(--stock)"></i>LME 재고</div>
@@ -288,9 +288,9 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
             <div class="d num">${chgHtml(sCur?.[3], sPrev?.[3], 0, "톤")}${sCur ? ` <span>${kDate(sCur[0], false)}</span>` : ""}</div>
           </div>
           <div class="stat">
-            <div class="k">${Number(thisMonth.month.slice(5))}월 Cash 평균</div>
+            <div class="k">${Number(thisMonth.month.slice(5))}월 현물가치 평균</div>
             <div class="v num">${fmt(thisMonth.cash)}</div>
-            <div class="d num">${thisMonth.days}거래일 기준, 전월 ${fmt(prevMonth?.cash)}</div>
+            <div class="d num">이번 달 ${thisMonth.days}거래일 평균, 전월 ${fmt(prevMonth?.cash)}</div>
           </div>
         </div>
       </section>
@@ -300,8 +300,8 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
           <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
             <h2>가격과 재고 추이</h2>
             <div class="legend">
-              <span><i style="background:var(--cash)"></i>Cash</span>
-              <span><i style="background:var(--three)"></i>3개월물</span>
+              <span><i style="background:var(--cash)"></i>현물가치</span>
+              <span><i style="background:var(--three)"></i>3개월 선물가치</span>
               <span><i style="background:var(--stock)"></i>재고</span>
             </div>
           </div>
@@ -317,7 +317,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
           <div class="th"><h2>월평균</h2></div>
           <p class="note">LME 월평균은 알루미늄 계약 단가의 기준으로 많이 쓰입니다.</p>
           <div class="scroll"><table class="num">
-            <thead><tr><th>월</th><th>Cash 평균</th><th>3개월물 평균</th><th>월말 재고</th><th>전월 대비</th></tr></thead>
+            <thead><tr><th>월</th><th>현물가치 평균</th><th>3개월 선물가치 평균</th><th>월말 재고</th><th>전월 대비</th></tr></thead>
             <tbody>${months.slice(-12).reverse().map((m, i, arr) => {
               const prev = months[months.length - 2 - i];
               return `<tr><td>${m.month.replace("-", ".")}${i === 0 ? '<span class="tag">진행 중</span>' : ""}</td>
@@ -330,7 +330,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
         <section class="card table-card">
           <div class="th"><h2>최근 거래일</h2><button class="btn" id="csvBtn">전체 CSV 받기</button></div>
           <div class="scroll"><table class="num">
-            <thead><tr><th>일자</th><th>Cash</th><th>전일 대비</th><th>3개월물</th><th>재고</th></tr></thead>
+            <thead><tr><th>일자</th><th>현물가치</th><th>전일 대비</th><th>3개월 선물가치</th><th>재고</th></tr></thead>
             <tbody>${rows.slice(-13).reverse().map((r, i, arr) => {
               const p = arr[i + 1] ?? rows[rows.length - 14];
               return `<tr><td>${r[0].replaceAll("-", ".")}</td><td>${fmt(r[1])}</td>
@@ -379,8 +379,8 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
           if (!r) return "";
           return `<div style="font-weight:600;margin-bottom:4px">${kDate(r[0])}</div>` +
             `<div style="display:grid;grid-template-columns:auto auto;gap:2px 16px;font-variant-numeric:tabular-nums">` +
-            `<span>Cash</span><b style="text-align:right">${fmt(r[1])}</b>` +
-            `<span>3개월물</span><b style="text-align:right">${fmt(r[2])}</b>` +
+            `<span>현물가치</span><b style="text-align:right">${fmt(r[1])}</b>` +
+            `<span>3개월 선물가치</span><b style="text-align:right">${fmt(r[2])}</b>` +
             `<span>재고</span><b style="text-align:right">${fmt(r[3], 0)}톤</b></div>`;
         },
       },
@@ -397,8 +397,8 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
       ],
       dataZoom: [{ type: "inside", xAxisIndex: [0, 1], filterMode: "filter" }],
       series: [
-        { name: "3개월물", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: series(2), showSymbol: false, lineStyle: { width: 1.5, color: css("--three") }, itemStyle: { color: css("--three") } },
-        { name: "Cash", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: series(1), showSymbol: false, lineStyle: { width: 2.2, color: css("--cash") }, itemStyle: { color: css("--cash") },
+        { name: "3개월 선물가치", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: series(2), showSymbol: false, lineStyle: { width: 1.5, color: css("--three") }, itemStyle: { color: css("--three") } },
+        { name: "현물가치", type: "line", xAxisIndex: 0, yAxisIndex: 0, data: series(1), showSymbol: false, lineStyle: { width: 2.2, color: css("--cash") }, itemStyle: { color: css("--cash") },
           areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: css("--cash") + "33" }, { offset: 1, color: css("--cash") + "00" }]) } },
         { name: "재고", type: "line", xAxisIndex: 1, yAxisIndex: 1, data: series(3), showSymbol: false, connectNulls: true, lineStyle: { width: 1.8, color: css("--stock") }, itemStyle: { color: css("--stock") },
           areaStyle: { color: css("--stock") + "22" } },
@@ -422,7 +422,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
   }
 
   function downloadCsv() {
-    const lines = ["일자,Cash (USD/t),3개월물 (USD/t),재고 (t)", ...rows.map((r) => r.map((v) => v ?? "").join(","))];
+    const lines = ["일자,현물가치 (USD/t),3개월 선물가치 (USD/t),재고 (t)", ...rows.map((r) => r.map((v) => v ?? "").join(","))];
     const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
