@@ -47,14 +47,7 @@ header.top .sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
 .dot.err { background: var(--up); }
 .status { flex-wrap: wrap; justify-content: flex-end; }
 .status-text { display: flex; align-items: center; gap: 8px; }
-.status-actions { display: flex; align-items: center; gap: 8px; }
-.btn.refresh { display: inline-flex; align-items: center; gap: 6px; }
-.btn.refresh svg { width: 14px; height: 14px; }
-.btn.refresh[aria-busy="true"] svg { animation: spin .9s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.run-link { color: var(--muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
-.run-link:hover { color: var(--ink); }
-.toast { font-size: 13px; color: var(--ink); background: var(--soft); border-radius: 6px; padding: 3px 8px; }
+
 
 .banner { background: color-mix(in srgb, var(--warn) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
   color: var(--ink); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 14px; margin-bottom: 16px; }
@@ -143,7 +136,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
   th, td { padding: 8px 16px; }
   .tabs button { padding: 6px 9px; }
 }
-@media (prefers-reduced-motion: reduce) { .range-mark { transition: none; } .btn.refresh[aria-busy="true"] svg { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .range-mark { transition: none; } }
 </style>
 </head>
 <body>
@@ -155,14 +148,6 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
     </div>
     <div class="status">
       <div class="status-text" id="status"></div>
-      <div class="status-actions">
-        <span id="toast" aria-live="polite"></span>
-        <button type="button" class="btn refresh" id="refreshBtn" title="저장된 최신 데이터를 다시 불러옵니다">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-          새로고침
-        </button>
-        <a class="run-link" id="runLink" target="_blank" rel="noopener" hidden>지금 수집 실행</a>
-      </div>
     </div>
   </header>
 
@@ -180,7 +165,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
 (() => {
   const DATA_URL = "data/lme.js";
   const STATUS_URL = "data/status.js";
-  const POLL_MS = 5 * 60 * 1000; // 5분마다 새 수집 결과가 있는지 확인
+  const POLL_MS = 2 * 60 * 1000; // 2분마다 새 자동 수집 결과가 있는지 확인(작은 상태 파일만 읽음)
   const RANGES = [["1M", "1개월", 31], ["3M", "3개월", 92], ["6M", "6개월", 183], ["1Y", "1년", 366], ["3Y", "3년", 1096], ["5Y", "5년", 1827], ["ALL", "전체", null]];
 
   const $ = (s) => document.querySelector(s);
@@ -405,16 +390,9 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
       dot = staleDays > 5 ? "warn" : "";
       text = `마지막 반영 ${kst(lastUpdatedAt)}`;
     }
-    const tip = status?.ok === false ? `오류: ${status.message ?? ""}` : lastUpdatedAt ? `데이터가 마지막으로 바뀐 시각: ${kst(lastUpdatedAt)}` : "";
+    const tip = status?.ok === false ? `오류: ${status.message ?? ""}`
+      : lastUpdatedAt ? `30분마다 실행되는 자동 수집이 마지막으로 확인한 시각입니다. 데이터가 마지막으로 바뀐 시각: ${kst(lastUpdatedAt)}` : "";
     $("#status").innerHTML = `<span class="dot ${dot}"></span><span title="${tip.replace(/"/g, "&quot;")}">${text}</span>`;
-  }
-
-  let toastTimer;
-  function toast(msg) {
-    const el = $("#toast");
-    el.innerHTML = msg ? `<span class="toast">${msg}</span>` : "";
-    clearTimeout(toastTimer);
-    if (msg) toastTimer = setTimeout(() => (el.innerHTML = ""), 4000);
   }
 
   function chgPct(cur, prev) {
@@ -522,11 +500,11 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
   }
 
   // 상태 파일을 먼저 보고, 데이터가 바뀐 경우에만 큰 데이터 파일을 다시 받음
-  async function load({ first = false, manual = false } = {}) {
-    if (demo && !manual) return;
+  async function load({ first = false } = {}) {
+    if (demo) return;
     if (await loadScript(STATUS_URL)) status = window.LME_STATUS ?? null;
     const known = status?.dataUpdatedAt;
-    const needData = first || manual || !rows.length || !known || known !== lastUpdatedAt;
+    const needData = first || !rows.length || !known || known !== lastUpdatedAt;
     let changed = false;
     if (needData) {
       const ok = await loadScript(DATA_URL);
@@ -547,33 +525,11 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
     return "same";
   }
 
-  async function manualRefresh() {
-    const btn = $("#refreshBtn");
-    if (btn.getAttribute("aria-busy") === "true") return;
-    btn.setAttribute("aria-busy", "true"); btn.disabled = true;
-    const r = await load({ manual: true });
-    btn.removeAttribute("aria-busy"); btn.disabled = false;
-    toast(r === "updated" ? "새 데이터를 불러왔습니다" : r === "same" ? "이미 최신 상태입니다" : "");
-  }
-
-  // GitHub Pages 주소면 수집 실행 페이지 링크를 보여줌(저장소 소유자만 실행 가능)
-  (() => {
-    const m = location.hostname.match(/^([^.]+)\.github\.io$/);
-    const repo = location.pathname.split("/").filter(Boolean)[0];
-    if (m && repo) {
-      const a = $("#runLink");
-      a.href = `https://github.com/${m[1]}/${repo}/actions/workflows/update.yml`;
-      a.title = "GitHub에서 Run workflow를 누르면 1~2분 뒤 반영됩니다 (저장소 소유자만 가능)";
-      a.hidden = false;
-    }
-  })();
-
   if (typeof echarts === "undefined") {
     $("#app").innerHTML = `<section class="card empty"><h2>차트 도구를 불러오지 못했습니다</h2><p>인터넷 연결을 확인한 뒤 새로고침하세요. 회사 네트워크에서 cdn.jsdelivr.net이 막혀 있을 수 있습니다.</p></section>`;
     return;
   }
 
-  $("#refreshBtn").onclick = manualRefresh;
   load({ first: true });
   setInterval(() => load(), POLL_MS);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
