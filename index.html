@@ -272,6 +272,9 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
     const fxCur = fxRows.at(-1), fxPrev = fxRows.at(-2);
     const ki = lastIdx(krw), kPrevI = ki > 0 ? (() => { for (let i = ki - 1; i >= 0; i--) if (krw(i) != null) return i; return -1; })() : -1;
     const kCur = ki >= 0 ? krw(ki) : null, kPrev = kPrevI >= 0 ? krw(kPrevI) : null;
+    const fxHint = status?.fxOk === false
+      ? `<span title="${(status.fxMessage ?? "").replace(/"/g, "&quot;")}">환율을 받지 못했습니다. 다음 확인 때 다시 시도합니다</span>`
+      : status && "fxOk" in status ? "환율 데이터가 비어 있습니다" : "수집 스크립트(fetch.mjs)를 최신으로 바꾼 뒤 수집을 실행하세요";
 
     // 52주 범위
     const cutoff = toDate(last[0]); cutoff.setDate(cutoff.getDate() - 365);
@@ -313,12 +316,12 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
           <div class="stat">
             <div class="k"><i style="background:var(--fx)"></i>원/달러 환율</div>
             <div class="v num">${fmt(fxCur?.[1])}<small>원</small></div>
-            <div class="d num">${chgHtml(fxCur?.[1], fxPrev?.[1], 2, "원")}${fxCur ? ` <span>${kDate(fxCur[0], false)}</span>` : ""}</div>
+            <div class="d num">${fxCur ? chgHtml(fxCur[1], fxPrev?.[1], 2, "원") + ` <span>${kDate(fxCur[0], false)}</span>` : fxHint}</div>
           </div>
           <div class="stat">
             <div class="k">원화 환산 현물가치</div>
             <div class="v num">${kCur == null ? "–" : f0.format(kCur)}<small>원/톤</small></div>
-            <div class="d num">${chgHtml(kCur, kPrev, 0, "원")}${kCur == null ? "" : ` <span>kg당 ${f0.format(kCur / 1000)}원</span>`}</div>
+            <div class="d num">${kCur == null ? (fxCur ? "" : "환율이 들어오면 표시됩니다") : chgHtml(kCur, kPrev, 0, "원") + ` <span>kg당 ${f0.format(kCur / 1000)}원</span>`}</div>
           </div>
           <div class="stat">
             <div class="k"><i style="background:var(--stock)"></i>LME 재고</div>
