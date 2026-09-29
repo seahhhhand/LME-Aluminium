@@ -55,9 +55,9 @@ export function parseHtml(html) {
 async function readExisting() {
   try {
     const d = JSON.parse(await readFile(path.join(DATA_DIR, "lme.json"), "utf8"));
-    return { rows: d.rows ?? [], fx: d.fx ?? [] };
+    return { rows: d.rows ?? [], fx: d.fx ?? [], updatedAt: d.updatedAt ?? null };
   } catch {
-    return { rows: [], fx: [] };
+    return { rows: [], fx: [], updatedAt: null };
   }
 }
 
@@ -112,7 +112,7 @@ async function fetchPage(url) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function main() {
-  const { rows: existing, fx: existingFx } = await readExisting();
+  const { rows: existing, fx: existingFx, updatedAt: prevUpdatedAt } = await readExisting();
   const merged = new Map(existing.map((r) => [r[0], r]));
   const now = new Date();
   const thisYear = now.getUTCFullYear();
@@ -151,7 +151,7 @@ export async function main() {
 
   if (JSON.stringify(existing) === JSON.stringify(rows) && JSON.stringify(existingFx) === JSON.stringify(fx)) {
     console.log(`변경 없음 (최신 ${rows.at(-1)[0]})`);
-    return;
+    return { changed: false, updatedAt: prevUpdatedAt, latest: rows.at(-1)[0] };
   }
 
   const payload = {
@@ -167,11 +167,31 @@ export async function main() {
   // file:// 로 열어도 동작하도록 스크립트 형태로도 저장
   await writeFile(path.join(DATA_DIR, "lme.js"), `window.LME_DATA=${JSON.stringify(payload)};\n`);
   console.log(`업데이트 완료: ${rows.length}행, ${rows[0][0]} ~ ${rows.at(-1)[0]}`);
+  return { changed: true, updatedAt: payload.updatedAt, latest: rows.at(-1)[0] };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main().catch((e) => {
-    console.error(e.message);
-    process.exit(1);
-  });
+// 매 실행마다 "마지막 확인" 기록. 작은 파일이라 30분마다 저장해도 저장소가 커지지 않음
+async function writeStatus(status) {
+  await mkdir(DATA_DIR, { recursive: true });
+  await writeFile(path.join(DATA_DIR, "status.json"), JSON.stringify(status));
+  await writeFile(path.join(DATA_DIR, "status.js"), `window.LME_STATUS=${JSON.stringify(status)};\n`);
 }
+
+async function readStatus() {
+  try { return JSON.parse(await readFile(path.join(DATA_DIR, "status.json"), "utf8")); } catch { return {}; }
+}
+
+export async function run() {
+  const checkedAt = new Date().toISOString();
+  try {
+    const r = await main();
+    await writeStatus({ checkedAt, ok: true, changed: r.changed, dataUpdatedAt: r.updatedAt, latest: r.latest });
+  } catch (e) {
+    console.error(e.message);
+    const prev = await readStatus();
+    await writeStatus({ ...prev, checkedAt, ok: false, changed: false, message: e.message });
+    process.exitCode = 1;
+  }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) run();
