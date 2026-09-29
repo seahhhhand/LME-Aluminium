@@ -1,1 +1,1 @@
-window.LME_STATUS={"checkedAt":"2026-09-29T19:43:53.725Z","ok":true,"changed":true,"dataUpdatedAt":"2026-09-29T19:44:01.496Z","latest":"2026-09-28","fxOk":true,"fxLatest":"2026-09-29","fxSource":"K","eximOk":true,"eximMessage":"과거 매매기준율 채우는 중(2025-10-23까지)"};
+window.LME_STATUS={"checkedAt":"2026-09-29T20:16:44.244Z","ok":true,"changed":true,"dataUpdatedAt":"2026-09-29T20:16:50.903Z","latest":"2026-09-28","fxOk":true,"fxLatest":"2026-09-29","fxSource":"K","eximOk":true,"eximMessage":"과거 매매기준율 채우는 중(2025-10-09까지)"};
