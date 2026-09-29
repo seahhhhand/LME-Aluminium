@@ -76,26 +76,72 @@ async function fetchFxRange(start, end) {
     .map(([date, v]) => [date, v.KRW]);
 }
 
+// 예비 출처: Frankfurter가 안 될 때 최신 1일치만 받음
+const FX_FALLBACK = [
+  "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json",
+  "https://latest.currency-api.pages.dev/v1/currencies/usd.json",
+];
+async function fetchFxLatestFallback() {
+  let last;
+  for (const url of FX_FALLBACK) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      if (typeof j?.usd?.krw === "number" && j.date) return [j.date, Math.round(j.usd.krw * 100) / 100];
+      throw new Error("형식이 다름");
+    } catch (e) { last = e; }
+  }
+  throw last;
+}
+
+const addDays = (d, n) => { const x = new Date(d); x.setUTCDate(x.getUTCDate() + n); return x; };
+const FX_BACKFILL_CHUNKS_PER_RUN = 30; // 한 번에 너무 많이 요청하지 않도록 나눠서 채움
+
+// 1) 최근 환율을 먼저 받고  2) 과거는 한 번에 일부씩 거슬러 올라가며 채움.
+// 어느 단계에서 실패해도 그때까지 받은 값은 저장됨.
 async function updateFx(existingFx) {
   const merged = new Map(existingFx.map((r) => [r[0], r]));
+  const errors = [];
   const today = new Date();
-  let cursor;
-  if (existingFx.length) {
-    cursor = new Date(existingFx.at(-1)[0]);
-    cursor.setUTCDate(cursor.getUTCDate() - 10); // 최근 값 보정용으로 조금 겹쳐 받기
-  } else {
-    cursor = new Date(Date.UTC(START_YEAR, 0, 1));
+
+  let start = existingFx.length ? addDays(new Date(existingFx.at(-1)[0] + "T00:00:00Z"), -10) : addDays(today, -85);
+  try {
+    while (start <= today) {
+      const end = addDays(start, 85) > today ? today : addDays(start, 85);
+      for (const r of await fetchFxRange(isoDay(start), isoDay(end))) merged.set(r[0], r);
+      start = addDays(end, 1);
+      await sleep(300);
+    }
+  } catch (e) {
+    errors.push(`최근 환율 실패(${e.message})`);
+    try {
+      const r = await fetchFxLatestFallback();
+      if (!merged.has(r[0])) merged.set(r[0], r);
+      console.log(`예비 출처로 최신 환율 사용: ${r[0]} ${r[1]}원`);
+    } catch (e2) {
+      errors.push(`예비 출처도 실패(${e2.message})`);
+    }
   }
-  while (cursor <= today) {
-    const end = new Date(cursor);
-    end.setUTCDate(end.getUTCDate() + 85);
-    const endStr = isoDay(end > today ? today : end);
-    for (const r of await fetchFxRange(isoDay(cursor), endStr)) merged.set(r[0], r);
-    cursor = new Date(end);
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
+
+  const floor = new Date(Date.UTC(START_YEAR, 0, 1));
+  const dates = [...merged.keys()].sort();
+  let earliest = dates.length ? new Date(dates[0] + "T00:00:00Z") : null;
+  for (let n = 0; earliest && earliest > addDays(floor, 4) && n < FX_BACKFILL_CHUNKS_PER_RUN; n++) {
+    const end = addDays(earliest, -1);
+    const st = addDays(end, -85) < floor ? floor : addDays(end, -85);
+    try {
+      for (const r of await fetchFxRange(isoDay(st), isoDay(end))) merged.set(r[0], r);
+    } catch (e) {
+      errors.push(`과거 환율 채우기 중단(${e.message}), 다음 실행 때 이어서 받음`);
+      break;
+    }
+    earliest = st;
     await sleep(300);
   }
-  return [...merged.values()].sort((a, b) => a[0].localeCompare(b[0]));
+
+  const fx = [...merged.values()].sort((a, b) => a[0].localeCompare(b[0]));
+  return { fx, errors };
 }
 
 async function fetchPage(url) {
@@ -141,17 +187,14 @@ export async function main() {
   const rows = [...merged.values()].sort((a, b) => a[0].localeCompare(b[0]));
 
   // 3) 환율: 실패해도 알루미늄 데이터 저장은 계속 진행
-  let fx = existingFx;
-  try {
-    fx = await updateFx(existingFx);
-    console.log(`환율: ${fx.length}일, 최신 ${fx.at(-1)?.[0]} ${fx.at(-1)?.[1]}원`);
-  } catch (e) {
-    console.warn(`환율 받기 실패, 기존 값 유지: ${e.message}`);
-  }
+  const { fx, errors: fxErrors } = await updateFx(existingFx);
+  console.log(`환율: ${fx.length}일` + (fx.length ? ` (${fx[0][0]} ~ ${fx.at(-1)[0]}, 최신 ${fx.at(-1)[1]}원)` : ""));
+  for (const m of fxErrors) console.warn(m);
+  const fxStatus = { fxOk: fxErrors.length === 0, fxMessage: fxErrors.join(" / ") || undefined, fxLatest: fx.at(-1)?.[0] };
 
   if (JSON.stringify(existing) === JSON.stringify(rows) && JSON.stringify(existingFx) === JSON.stringify(fx)) {
     console.log(`변경 없음 (최신 ${rows.at(-1)[0]})`);
-    return { changed: false, updatedAt: prevUpdatedAt, latest: rows.at(-1)[0] };
+    return { changed: false, updatedAt: prevUpdatedAt, latest: rows.at(-1)[0], ...fxStatus };
   }
 
   const payload = {
@@ -167,7 +210,7 @@ export async function main() {
   // file:// 로 열어도 동작하도록 스크립트 형태로도 저장
   await writeFile(path.join(DATA_DIR, "lme.js"), `window.LME_DATA=${JSON.stringify(payload)};\n`);
   console.log(`업데이트 완료: ${rows.length}행, ${rows[0][0]} ~ ${rows.at(-1)[0]}`);
-  return { changed: true, updatedAt: payload.updatedAt, latest: rows.at(-1)[0] };
+  return { changed: true, updatedAt: payload.updatedAt, latest: rows.at(-1)[0], ...fxStatus };
 }
 
 // 매 실행마다 "마지막 확인" 기록. 작은 파일이라 30분마다 저장해도 저장소가 커지지 않음
@@ -185,7 +228,8 @@ export async function run() {
   const checkedAt = new Date().toISOString();
   try {
     const r = await main();
-    await writeStatus({ checkedAt, ok: true, changed: r.changed, dataUpdatedAt: r.updatedAt, latest: r.latest });
+    await writeStatus({ checkedAt, ok: true, changed: r.changed, dataUpdatedAt: r.updatedAt, latest: r.latest,
+      fxOk: r.fxOk, fxMessage: r.fxMessage, fxLatest: r.fxLatest });
   } catch (e) {
     console.error(e.message);
     const prev = await readStatus();
