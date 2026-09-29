@@ -242,6 +242,11 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
     const hi = yr.reduce((a, r) => r[1] > a[1] ? r : a, yr[0]);
     const pos = hi[1] === lo[1] ? 50 : (cCur[1] - lo[1]) / (hi[1] - lo[1]) * 100;
 
+    // 데이터가 충분한 기간 버튼만 표시
+    const spanDays = (toDate(last[0]) - toDate(rows[0][0])) / 86400000;
+    const avail = RANGES.filter(([, , d]) => d == null || spanDays >= d * 0.9);
+    if (!avail.some(([k]) => k === range)) range = avail.length > 1 ? avail.at(-2)[0] : "ALL";
+
     // 이번 달 평균
     const months = monthly(), thisMonth = months.at(-1), prevMonth = months.at(-2);
 
@@ -306,7 +311,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
             </div>
           </div>
           <div class="tabs" role="group" aria-label="기간">
-            ${RANGES.map(([k, l]) => `<button type="button" data-r="${k}" aria-pressed="${k === range}">${l}</button>`).join("")}
+            ${avail.map(([k, l]) => `<button type="button" data-r="${k}" aria-pressed="${k === range}">${l}</button>`).join("")}
           </div>
         </div>
         <div id="chart"></div>
