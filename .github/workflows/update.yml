@@ -18,6 +18,8 @@ jobs:
         with:
           node-version: 24
       - name: Fetch data
+        env:
+          KOREAEXIM_API_KEY: ${{ secrets.KOREAEXIM_API_KEY }}
         run: node scripts/fetch.mjs
       - name: Commit changes
         if: always()
