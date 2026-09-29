@@ -55,9 +55,10 @@ export function parseHtml(html) {
 async function readExisting() {
   try {
     const d = JSON.parse(await readFile(path.join(DATA_DIR, "lme.json"), "utf8"));
-    return { rows: d.rows ?? [], fx: d.fx ?? [], updatedAt: d.updatedAt ?? null };
+    const fx = (d.fx ?? []).map((r) => [r[0], r[1], r[2] ?? "E"]);
+    return { rows: d.rows ?? [], fx, updatedAt: d.updatedAt ?? null, eximCursor: d.eximCursor ?? null };
   } catch {
-    return { rows: [], fx: [], updatedAt: null };
+    return { rows: [], fx: [], updatedAt: null, eximCursor: null };
   }
 }
 
@@ -73,7 +74,7 @@ async function fetchFxRange(start, end) {
   const data = await res.json();
   return Object.entries(data.rates ?? {})
     .filter(([, v]) => typeof v?.KRW === "number")
-    .map(([date, v]) => [date, v.KRW]);
+    .map(([date, v]) => [date, v.KRW, "E"]);
 }
 
 // 예비 출처: Frankfurter가 안 될 때 최신 1일치만 받음
@@ -88,7 +89,7 @@ async function fetchFxLatestFallback() {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = await res.json();
-      if (typeof j?.usd?.krw === "number" && j.date) return [j.date, Math.round(j.usd.krw * 100) / 100];
+      if (typeof j?.usd?.krw === "number" && j.date) return [j.date, Math.round(j.usd.krw * 100) / 100, "F"];
       throw new Error("형식이 다름");
     } catch (e) { last = e; }
   }
@@ -100,6 +101,13 @@ const FX_BACKFILL_CHUNKS_PER_RUN = 30; // 한 번에 너무 많이 요청하지 
 
 // 1) 최근 환율을 먼저 받고  2) 과거는 한 번에 일부씩 거슬러 올라가며 채움.
 // 어느 단계에서 실패해도 그때까지 받은 값은 저장됨.
+// 수출입은행(K) 값은 ECB(E)나 예비 출처(F)로 덮어쓰지 않음
+function putFx(map, r) {
+  const old = map.get(r[0]);
+  if (old && old[2] === "K" && r[2] !== "K") return;
+  map.set(r[0], r);
+}
+
 async function updateFx(existingFx) {
   const merged = new Map(existingFx.map((r) => [r[0], r]));
   const errors = [];
@@ -109,7 +117,7 @@ async function updateFx(existingFx) {
   try {
     while (start <= today) {
       const end = addDays(start, 85) > today ? today : addDays(start, 85);
-      for (const r of await fetchFxRange(isoDay(start), isoDay(end))) merged.set(r[0], r);
+      for (const r of await fetchFxRange(isoDay(start), isoDay(end))) putFx(merged, r);
       start = addDays(end, 1);
       await sleep(300);
     }
@@ -131,7 +139,7 @@ async function updateFx(existingFx) {
     const end = addDays(earliest, -1);
     const st = addDays(end, -85) < floor ? floor : addDays(end, -85);
     try {
-      for (const r of await fetchFxRange(isoDay(st), isoDay(end))) merged.set(r[0], r);
+      for (const r of await fetchFxRange(isoDay(st), isoDay(end))) putFx(merged, r);
     } catch (e) {
       errors.push(`과거 환율 채우기 중단(${e.message}), 다음 실행 때 이어서 받음`);
       break;
@@ -140,8 +148,77 @@ async function updateFx(existingFx) {
     await sleep(300);
   }
 
-  const fx = [...merged.values()].sort((a, b) => a[0].localeCompare(b[0]));
-  return { fx, errors };
+  return { merged, errors };
+}
+
+// ---------- 한국수출입은행 매매기준율 (인증키가 있을 때만) ----------
+// 하루 1,000회 제한이 있어 한 번 실행에 최대 EXIM_BACKFILL_PER_RUN일씩만 과거를 채움
+const EXIM_URL = "https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON";
+const EXIM_BACKFILL_PER_RUN = 10;
+const ymd = (iso) => iso.replaceAll("-", "");
+const isWeekend = (iso) => { const g = new Date(iso + "T00:00:00Z").getUTCDay(); return g === 0 || g === 6; };
+const kstNow = () => new Date(Date.now() + 9 * 3600 * 1000); // UTC 기준 Date를 한국시간 값으로 이동
+
+class EximStop extends Error {}
+
+async function fetchExim(key, iso) {
+  let res;
+  try {
+    res = await fetch(`${EXIM_URL}?authkey=${encodeURIComponent(key)}&searchdate=${ymd(iso)}&data=AP01`, {
+      signal: AbortSignal.timeout(10000),
+      headers: { Accept: "application/json" },
+    });
+  } catch (e) {
+    throw new EximStop(`접속 실패(${e.name === "TimeoutError" ? "시간 초과, 해외 접속 차단 가능성" : e.message})`);
+  }
+  if (!res.ok) throw new EximStop(`응답 오류 HTTP ${res.status}`);
+  let list;
+  try { list = await res.json(); } catch { throw new EximStop("응답 형식이 JSON이 아님"); }
+  if (!Array.isArray(list) || list.length === 0) return null; // 주말·공휴일·발표 전
+  const code = list[0]?.result;
+  if (code === 3) throw new EximStop("인증키 오류");
+  if (code === 4) throw new EximStop("일일 요청 한도 초과");
+  if (code === 2) throw new EximStop("요청 형식 오류");
+  const usd = list.find((x) => x.cur_unit === "USD");
+  const v = usd && Number(String(usd.deal_bas_r).replace(/,/g, ""));
+  return Number.isFinite(v) && v > 0 ? [iso, v, "K"] : null;
+}
+
+async function updateExim(merged, cursor) {
+  const key = process.env.KOREAEXIM_API_KEY?.trim();
+  if (!key) return { cursor, message: "인증키 없음(ECB 환율 사용)", used: false };
+  const now = kstNow();
+  const todayIso = now.toISOString().slice(0, 10);
+  const afterPublish = now.getUTCHours() >= 11; // 수출입은행은 영업일 오전 11시 전후 발표
+  let calls = 0;
+  try {
+    // 1) 최근: 마지막 수출입은행 값 다음날부터 오늘까지
+    const kDates = [...merged.values()].filter((r) => r[2] === "K").map((r) => r[0]).sort();
+    let d = kDates.length ? isoDay(addDays(new Date(kDates.at(-1) + "T00:00:00Z"), 1)) : isoDay(addDays(new Date(todayIso + "T00:00:00Z"), -7));
+    while (d <= todayIso) {
+      if (!isWeekend(d) && (d < todayIso || afterPublish)) {
+        const r = await fetchExim(key, d); calls++;
+        if (r) merged.set(r[0], r);
+        await sleep(200);
+      }
+      d = isoDay(addDays(new Date(d + "T00:00:00Z"), 1));
+    }
+    // 2) 과거: 커서에서 거꾸로 조금씩
+    const floorIso = `${START_YEAR}-01-01`;
+    let c = cursor ?? (kDates[0] ?? todayIso);
+    let n = 0;
+    while (n < EXIM_BACKFILL_PER_RUN && c > floorIso) {
+      c = isoDay(addDays(new Date(c + "T00:00:00Z"), -1));
+      if (isWeekend(c) || merged.get(c)?.[2] === "K") continue;
+      const r = await fetchExim(key, c); calls++; n++;
+      if (r) merged.set(r[0], r);
+      await sleep(200);
+    }
+    return { cursor: c, message: c > floorIso ? `과거 매매기준율 채우는 중(${c}까지)` : undefined, used: true, calls };
+  } catch (e) {
+    if (e instanceof EximStop) return { cursor, message: e.message, used: calls > 0, failed: true, calls };
+    throw e;
+  }
 }
 
 async function fetchPage(url) {
@@ -158,7 +235,7 @@ async function fetchPage(url) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function main() {
-  const { rows: existing, fx: existingFx, updatedAt: prevUpdatedAt } = await readExisting();
+  const { rows: existing, fx: existingFx, updatedAt: prevUpdatedAt, eximCursor } = await readExisting();
   const merged = new Map(existing.map((r) => [r[0], r]));
   const now = new Date();
   const thisYear = now.getUTCFullYear();
@@ -187,12 +264,22 @@ export async function main() {
   const rows = [...merged.values()].sort((a, b) => a[0].localeCompare(b[0]));
 
   // 3) 환율: 실패해도 알루미늄 데이터 저장은 계속 진행
-  const { fx, errors: fxErrors } = await updateFx(existingFx);
+  const { merged: fxMap, errors: fxErrors } = await updateFx(existingFx);
+  const exim = await updateExim(fxMap, eximCursor);
+  console.log(`수출입은행: ${exim.message ?? "정상"}${exim.calls ? ` (요청 ${exim.calls}회)` : ""}`);
+  const fx = [...fxMap.values()].sort((a, b) => a[0].localeCompare(b[0]));
   console.log(`환율: ${fx.length}일` + (fx.length ? ` (${fx[0][0]} ~ ${fx.at(-1)[0]}, 최신 ${fx.at(-1)[1]}원)` : ""));
   for (const m of fxErrors) console.warn(m);
-  const fxStatus = { fxOk: fxErrors.length === 0, fxMessage: fxErrors.join(" / ") || undefined, fxLatest: fx.at(-1)?.[0] };
+  const fxStatus = {
+    fxOk: fxErrors.length === 0 || fx.some((r) => r[2] === "K"),
+    fxMessage: fxErrors.join(" / ") || undefined,
+    fxLatest: fx.at(-1)?.[0],
+    fxSource: fx.at(-1)?.[2],
+    eximOk: exim.failed ? false : exim.used ? true : undefined,
+    eximMessage: exim.message,
+  };
 
-  if (JSON.stringify(existing) === JSON.stringify(rows) && JSON.stringify(existingFx) === JSON.stringify(fx)) {
+  if (JSON.stringify(existing) === JSON.stringify(rows) && JSON.stringify(existingFx) === JSON.stringify(fx) && exim.cursor === eximCursor) {
     console.log(`변경 없음 (최신 ${rows.at(-1)[0]})`);
     return { changed: false, updatedAt: prevUpdatedAt, latest: rows.at(-1)[0], ...fxStatus };
   }
@@ -202,8 +289,9 @@ export async function main() {
     source: "Westmetall (LME Aluminium Cash-Settlement, 3-month, stock), Frankfurter/ECB (USD/KRW)",
     columns: ["date", "cash", "threeMonth", "stock"],
     rows,
-    fxColumns: ["date", "usdkrw"],
+    fxColumns: ["date", "usdkrw", "source"], // source: K=수출입은행 매매기준율, E=ECB 기준환율, F=예비 출처
     fx,
+    eximCursor: exim.cursor,
   };
   await mkdir(DATA_DIR, { recursive: true });
   await writeFile(path.join(DATA_DIR, "lme.json"), JSON.stringify(payload));
@@ -229,7 +317,8 @@ export async function run() {
   try {
     const r = await main();
     await writeStatus({ checkedAt, ok: true, changed: r.changed, dataUpdatedAt: r.updatedAt, latest: r.latest,
-      fxOk: r.fxOk, fxMessage: r.fxMessage, fxLatest: r.fxLatest });
+      fxOk: r.fxOk, fxMessage: r.fxMessage, fxLatest: r.fxLatest, fxSource: r.fxSource,
+      eximOk: r.eximOk, eximMessage: r.eximMessage });
   } catch (e) {
     console.error(e.message);
     const prev = await readStatus();
