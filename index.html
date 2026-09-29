@@ -170,8 +170,8 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
   <main id="app"></main>
 
   <footer>
-    출처: LME 알루미늄 공식가격(현물가치 = Cash-Settlement)과 LME 재고는 Westmetall, 원/달러 환율은 유럽중앙은행(ECB) 기준환율(Frankfurter API). 가격은 장 마감 종가가 아닌 LME 공식가격입니다.
-    환율은 국내 은행 고시환율이나 서울외환시장 매매기준율과 조금 다를 수 있으며, 원화 환산값은 같은 날(없으면 직전 영업일) 환율을 곱한 참고값입니다.
+    출처: LME 알루미늄 공식가격(현물가치 = Cash-Settlement)과 LME 재고는 Westmetall. 원/달러 환율은 한국수출입은행 매매기준율을 우선 사용하고, 받지 못한 날은 유럽중앙은행(ECB) 기준환율(Frankfurter API)로 채웁니다. 환율 옆 괄호에 최신 값의 출처가 표시됩니다.
+    가격은 장 마감 종가가 아닌 LME 공식가격이며, 원화 환산값은 같은 날(없으면 직전 영업일) 환율을 곱한 참고값입니다.
     재고는 LME 발표 시점 때문에 가격보다 하루 늦게 반영될 수 있습니다. 참고용 자료이며, 계약 단가 산정에는 공식 출처를 확인하세요.
   </footer>
 </div>
@@ -272,6 +272,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
     const fxCur = fxRows.at(-1), fxPrev = fxRows.at(-2);
     const ki = lastIdx(krw), kPrevI = ki > 0 ? (() => { for (let i = ki - 1; i >= 0; i--) if (krw(i) != null) return i; return -1; })() : -1;
     const kCur = ki >= 0 ? krw(ki) : null, kPrev = kPrevI >= 0 ? krw(kPrevI) : null;
+    const fxSrcTip = (status?.eximMessage ? `수출입은행: ${status.eximMessage}` : "").replace(/"/g, "&quot;");
     const fxHint = status?.fxOk === false
       ? `<span title="${(status.fxMessage ?? "").replace(/"/g, "&quot;")}">환율을 받지 못했습니다. 다음 확인 때 다시 시도합니다</span>`
       : status && "fxOk" in status ? "환율 데이터가 비어 있습니다" : "수집 스크립트(fetch.mjs)를 최신으로 바꾼 뒤 수집을 실행하세요";
@@ -314,7 +315,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
         </div>
         <div class="stats">
           <div class="stat">
-            <div class="k"><i style="background:var(--fx)"></i>원/달러 환율</div>
+            <div class="k"><i style="background:var(--fx)"></i>원/달러 환율${fxCur ? ` <span title="${fxSrcTip}">(${FX_SRC[fxCur[2] ?? "E"]})</span>` : ""}</div>
             <div class="v num">${fmt(fxCur?.[1])}<small>원</small></div>
             <div class="d num">${fxCur ? chgHtml(fxCur[1], fxPrev?.[1], 2, "원") + ` <span>${kDate(fxCur[0], false)}</span>` : fxHint}</div>
           </div>
@@ -387,6 +388,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; line-height: 1.
     drawChart();
   }
 
+  const FX_SRC = { K: "수출입은행 매매기준율", E: "ECB 기준환율", F: "예비 출처" };
   const kst = (iso) => new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 
   function renderStatus() {
