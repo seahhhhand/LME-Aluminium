@@ -1,1 +1,1 @@
-window.LME_STATUS={"checkedAt":"2026-09-30T12:51:54.508Z","ok":true,"changed":false,"dataUpdatedAt":"2026-09-30T12:23:34.040Z","latest":"2026-09-29","fxOk":true,"fxLatest":"2026-09-30","fxSource":"K","eximOk":false,"eximMessage":"접속 실패(시간 초과, 해외 접속 차단 가능성)"};
+window.LME_STATUS={"checkedAt":"2026-09-30T13:18:59.058Z","ok":true,"changed":true,"dataUpdatedAt":"2026-09-30T13:19:06.147Z","latest":"2026-09-29","fxOk":true,"fxLatest":"2026-09-30","fxSource":"K","eximOk":true,"eximMessage":"과거 매매기준율 채우는 중(2024-07-18까지)"};
