@@ -1,1 +1,1 @@
-window.LME_STATUS={"checkedAt":"2026-10-01T14:47:38.072Z","ok":true,"changed":true,"dataUpdatedAt":"2026-10-01T14:47:45.072Z","latest":"2026-09-30","fxOk":true,"fxMessage":"최근 환율 실패(환율 응답 오류: HTTP 521)","fxLatest":"2026-10-01","fxSource":"K","eximOk":true,"eximMessage":"과거 매매기준율 채우는 중(2022-09-15까지)"};
+window.LME_STATUS={"checkedAt":"2026-10-01T15:16:42.723Z","ok":true,"changed":true,"dataUpdatedAt":"2026-10-01T15:16:50.920Z","latest":"2026-09-30","fxOk":true,"fxLatest":"2026-10-01","fxSource":"K","eximOk":true,"eximMessage":"과거 매매기준율 채우는 중(2022-09-01까지)"};
