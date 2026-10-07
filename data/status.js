@@ -1,1 +1,1 @@
-window.LME_STATUS={"checkedAt":"2026-10-07T06:19:08.197Z","ok":true,"changed":true,"dataUpdatedAt":"2026-10-07T06:19:13.785Z","latest":"2026-10-06","fxOk":true,"fxLatest":"2026-10-07","fxSource":"K","eximOk":false,"eximMessage":"일일 요청 한도 초과"};
+window.LME_STATUS={"checkedAt":"2026-10-07T06:51:43.609Z","ok":true,"changed":false,"dataUpdatedAt":"2026-10-07T06:19:13.785Z","latest":"2026-10-06","fxOk":true,"fxLatest":"2026-10-07","fxSource":"K","eximOk":false,"eximMessage":"일일 요청 한도 초과"};
