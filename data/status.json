@@ -1,1 +1,1 @@
-{"checkedAt":"2026-10-09T18:50:20.035Z","ok":true,"changed":false,"dataUpdatedAt":"2026-10-09T18:17:27.552Z","latest":"2026-10-08","fxOk":true,"fxLatest":"2026-10-09","fxSource":"E","eximOk":false,"eximMessage":"접속 실패(시간 초과, 해외 접속 차단 가능성)"}
+{"checkedAt":"2026-10-09T19:14:23.786Z","ok":true,"changed":false,"dataUpdatedAt":"2026-10-09T18:17:27.552Z","latest":"2026-10-08","fxOk":true,"fxLatest":"2026-10-09","fxSource":"E","eximOk":false,"eximMessage":"접속 실패(fetch failed)"}
