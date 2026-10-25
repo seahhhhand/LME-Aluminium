@@ -1,1 +1,1 @@
-window.LME_STATUS={"checkedAt":"2026-10-25T21:54:16.982Z","ok":true,"changed":false,"dataUpdatedAt":"2026-10-24T00:38:11.200Z","latest":"2026-10-23","fxOk":true,"fxLatest":"2026-10-23","fxSource":"K","eximOk":true};
+window.LME_STATUS={"checkedAt":"2026-10-25T22:19:35.239Z","ok":true,"changed":false,"dataUpdatedAt":"2026-10-24T00:38:11.200Z","latest":"2026-10-23","fxOk":true,"fxLatest":"2026-10-23","fxSource":"K","eximOk":true};
