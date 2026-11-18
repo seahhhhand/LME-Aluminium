@@ -1,1 +1,1 @@
-window.LME_STATUS={"checkedAt":"2026-11-17T21:39:46.567Z","ok":true,"changed":false,"dataUpdatedAt":"2026-11-17T03:33:34.022Z","latest":"2026-11-16","fxOk":true,"fxLatest":"2026-11-17","fxSource":"K","eximOk":true};
+window.LME_STATUS={"checkedAt":"2026-11-18T03:28:05.774Z","ok":true,"changed":true,"dataUpdatedAt":"2026-11-18T03:28:10.634Z","latest":"2026-11-17","fxOk":true,"fxLatest":"2026-11-17","fxSource":"K","eximOk":false,"eximMessage":"응답 오류 HTTP 503"};
